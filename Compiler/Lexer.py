@@ -1,4 +1,4 @@
-from rply import LexerGenerator
+from rply import LexerGenerator, LexingError
 
 
 class Lexer:

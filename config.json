@@ -1,0 +1,6 @@
+{
+    "fiware_service": "orion",
+    "fiware_servicepath": "/environment",
+    "orion_url": "http://localhost:1026",
+    "iota_url": "http://localhost:4061"
+}
