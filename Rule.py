@@ -6,7 +6,7 @@ import re
 import requests
 
 from Compiler import Lexer, Parser, LexingError
-from config import orion_url, get_headers, post_headers, iota_url
+from config import orion_url, get_headers, post_headers
 
 
 class Rule:
@@ -15,7 +15,7 @@ class Rule:
 
     def __init__(
         self, rule: str, true: str = None, false: str = None,
-        date_from: Union[datetime, str] = datetime.min, date_to: Union[datetime, str] = datetime.max,
+        date_from: Union[datetime, str] = datetime(1900, 1, 1), date_to: Union[datetime, str] = datetime(9999, 12, 31),
         start_time: Union[time, str] = None, end_time: Union[time, str] = None
     ):
         self.rule = rule
@@ -30,6 +30,11 @@ class Rule:
 
     @staticmethod
     def _check_action(action):
+        """
+        Checks if action is in the entity of the action and the action itself exist and has the correct type.
+        :param action: Action in the format <Entity_ID>.<Action>
+        :return: The entity type and the input action
+        """
         if action is None:
             return None, None
         if re.match(r'[a-zA-Z_]\w+\.[a-zA-Z_]\w+$', action):  # Must tu have the format entity.command
@@ -79,7 +84,7 @@ class Rule:
 
     @property
     def rule(self):
-        return self.rule_str
+        return self._rule_str
 
     @rule.setter
     def rule(self, new_rule):
@@ -88,7 +93,7 @@ class Rule:
             self._rule.eval()
         except LexingError:
             pass
-        self.rule_str = new_rule
+        self._rule_str = new_rule
 
     @property
     def true(self):
@@ -139,12 +144,25 @@ class Rule:
         self._end_time = self._parse_time(new_end_time)
 
     def get_entities(self):
+        """
+        Gets each entity involved in the rule.
+        :return: Entity ID list.
+        """
         return self._rule.get_entities()
 
     def eval(self):
+        """
+        Check if the rule is true or false.
+        :return: True or False depending on the rule.
+        """
         return self._rule.eval()
 
     def execute(self):
+        """
+        Check if is in date and in the programmed scheule (if exists).
+        If everithing is OK, evaluate the rule itself and execute the pertinent command
+        :return: None if it cannot be executed. The result of evaluation otherwise.
+        """
         assert (self.start_time is not None) == (self.end_time is not None), \
             'Must be informed the two hours, or none'
         now = datetime.now()  # Check if the rule can be executed
@@ -183,7 +201,7 @@ class Rule:
         return result
 
     def to_dict(self):
-        the_dict = {'rule': self.rule_str}
+        the_dict = {'rule': self._rule_str}
         if self.true is not None: the_dict['true'] = self.true
         if self.false is not None: the_dict['false'] = self.false
 
@@ -197,3 +215,21 @@ class Rule:
 
     def __str__(self):
         return self.rule
+
+    def __eq__(self, other):
+        if self.rule != other.rule: return False
+
+        if self.true != other.true: return False
+        if self.false != other.false: return False
+
+        if self.date_from != other.date_from: return False
+        if self.date_to != other.date_to: return False
+
+        if self.start_time != other.start_time: return False
+        if self.end_time != other.end_time: return False
+
+        return True
+
+    def __hash__(self):
+        return hash(str(self.to_dict()))
+

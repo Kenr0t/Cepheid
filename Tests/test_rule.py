@@ -83,3 +83,7 @@ class TestParser(unittest.TestCase):
         self.assertIsNone(pre_date.execute())
         post_date = Rule('Test01.Temperature > 26', true='Test01.AC_On', date_from='01/01/2019', date_to='01/01/20')
         self.assertIsNone(post_date.execute())
+
+
+if __name__ == '__main__':
+    unittest.main()
