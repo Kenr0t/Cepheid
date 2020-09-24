@@ -1,8 +1,9 @@
 import requests
 
 from rply import ParserGenerator
+from rply.errors import LexingError
 
-from config import get_headers, orion_url
+from config import orion_url
 
 
 class Value:
@@ -10,7 +11,7 @@ class Value:
         self.val = val
 
     def get_entities(self):
-        return []
+        return {}
 
 
 class Decimal(Value):
@@ -32,24 +33,29 @@ class String(Value):
 
 
 class Attribute:
-    def __init__(self, entity_id, attr):
+    def __init__(self, entity_id, attr, headers):
         self.entity_id = entity_id
         self.attr_id = attr
-        self.eval()
-
-    def eval(self):
+        self.headers = headers
         entity = requests.get(
             url=f'{orion_url}/v2/entities/{self.entity_id}?options=keyValues',
-            headers=get_headers
+            headers=self.headers
         ).json()
         if 'error' in entity:
             raise ValueError(f'The entity "{self.entity_id}" does not exist.')
         if self.attr_id not in entity:
             raise ValueError(f'The attribute "{self.attr_id}", does not belong to the entity "{self.entity_id}".')
-        return entity[self.attr_id]
+        self.type = entity['type']
+
+    def eval(self):
+        response = requests.get(
+            url=f'{orion_url}/v2/entities/{self.entity_id}?options=values&attrs={self.attr_id}', headers=self.headers
+        )
+        assert response.status_code == 200, f'Error retrieving the value of {self.entity_id}.{self.attr_id}.'
+        return response.json()[0]
 
     def get_entities(self):
-        return [self.entity_id]
+        return {self.entity_id: {'type': self.type, 'attrs': {self.attr_id}}}
 
 
 class BinaryOperator:
@@ -58,25 +64,37 @@ class BinaryOperator:
         self.right = right
 
     def get_entities(self):
-        return self.left.get_entities() + self.right.get_entities()
+        left_entities = self.left.get_entities()
+        for k, v in self.right.get_entities().items():
+            if k in left_entities:
+                assert left_entities[k]['type'] == v['type'], 'The type of the same entity does not match.'
+                left_entities[k]['attrs'].update(v['attrs'])
+            else:
+                left_entities[k] = v
+        return left_entities
 
 
-class GreaterEq(BinaryOperator):
-    def eval(self):
-        return self.left.eval() >= self.right.eval()
+class BinaryNumericOperator(BinaryOperator):
+    def __init__(self, left, right):
+        if not (isinstance(left.eval(), (int, float)) and isinstance(right.eval(), (int, float))):
+            raise TypeError('The types of the Left and Right values must Integer or Floats.')
+        super().__init__(left, right)
 
 
-class LowerEq(BinaryOperator):
-    def eval(self):
-        return self.left.eval() <= self.right.eval()
+class EqualityOperator(BinaryOperator):
+    def __init__(self, left, right):
+        if not isinstance(l_val := left.eval(), type(r_val := right.eval())) and \
+           not (isinstance(l_val, (int, float)) and isinstance(r_val, (int, float))):
+            raise TypeError('The types of the Left and Right values must be equal.')
+        super().__init__(left, right)
 
 
-class Equal(BinaryOperator):
+class Equal(EqualityOperator):
     def eval(self):
         return self.left.eval() == self.right.eval()
 
 
-class Distinct(BinaryOperator):
+class Distinct(EqualityOperator):
     def eval(self):
         return self.left.eval() != self.right.eval()
 
@@ -91,12 +109,31 @@ class Lower(BinaryOperator):
         return self.left.eval() < self.right.eval()
 
 
+class GreaterEq(BinaryNumericOperator):
+    def eval(self):
+        return self.left.eval() >= self.right.eval()
+
+
+class LowerEq(BinaryNumericOperator):
+    def eval(self):
+        return self.left.eval() <= self.right.eval()
+
+
 class LogicalOperator:
     def __init__(self, expressions: list):
         self.expressions = expressions
 
     def get_entities(self):
-        return [e for entities in self.expressions for e in entities.get_entities()]
+        first, *rest = self.expressions
+        first_entities = first.get_entities()
+        for entities in rest:
+            for k, v in entities.get_entities().items():
+                if k in first_entities:
+                    assert first_entities[k]['type'] == v['type'], 'The type of the same entity does not match.'
+                    first_entities[k]['attrs'].update(v['attrs'])
+                else:
+                    first_entities[k] = v
+        return first_entities
 
 
 class And(LogicalOperator):
@@ -134,8 +171,8 @@ class Parser:
         )
 
         self.__setup_parser()
-        self.entity = None
         self.__parser = self.__pg.build()
+        self.headers = None
 
     def __setup_parser(self):
         @self.__pg.production('comparison : boolean')
@@ -175,6 +212,7 @@ class Parser:
         @self.__pg.production('valor : STRING DOT ID')
         @self.__pg.production('valor : STRING DOT STRING')
         def variable(p):
+            assert self.headers is not None, 'Lost headers while parsing rule.'
             entity, _, attr = p
 
             entity_id = entity.value
@@ -185,13 +223,21 @@ class Parser:
             if attr.gettokentype() == 'STRING':
                 attr_id = String(attr_id).eval()
 
-            return Attribute(entity_id, attr_id)
+            return Attribute(entity_id, attr_id, self.headers)
 
         @self.__pg.error
         def error_handle(token):
             raise ValueError(token)
 
-    def parse(self, tokenizer):
-        return self.__parser.parse(tokenizer=tokenizer)
+    def parse(self, tokenizer, headers):
+        if 'Fiware-Service' not in headers:
+            raise ValueError('Lost Fiware-Service for parse the rule...')
+        if 'Fiware-ServicePath' not in headers:
+            raise ValueError('Lost Fiware-ServicePath for parse the rule...')
+        if headers['Accept'] != 'application/json':
+            raise ValueError('Headers must accept application/json to parse the rule')
 
-
+        self.headers = headers
+        the_rule = self.__parser.parse(tokenizer=tokenizer)
+        self.headers = None
+        return the_rule
