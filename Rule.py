@@ -24,6 +24,21 @@ class Rule:
         self._start_time, self._end_time = None, None
         self.subscription_id = subsId
 
+    @classmethod
+    def from_dict(cls, rule: dict):
+        params = {p: rule.pop(p) for p in ['rule', 'service', 'servicepath', 'true', 'false', 'subsId'] if p in rule}
+        new_rule = cls(**params)
+        if 'date_from' in rule: new_rule.set_date_from(rule.pop('date_from'))
+        if 'date_to' in rule: new_rule.set_date_to(rule.pop('date_to'))
+        if 'start_time' in rule and 'end_time' in rule:
+            new_rule.set_schedule(rule.pop('start_time'), rule.pop('end_time'))
+        elif 'start_time' in rule or 'end_time' in rule:
+            raise ValueError('They must be both or none of the following attributes: [start_time, end_time] ')
+
+        if len(rule) != 0:
+            raise ValueError(f'The following parameters do not belong to a rule: [{", ".join(rule)}]')
+        return new_rule
+
     def _check_action(self, action):
         """
         Checks if action is in the entity of the action and the action itself exist and has the correct type.
@@ -246,10 +261,10 @@ class Rule:
         return response.status_code == 204
 
     def to_dict(self):
-        the_dict = {'rule': self._rule_str, 'service': self.headers['Fiware-Service'], 'servicepath': self.headers['Fiware-ServicePath']}
-
-        if self.true is not None: the_dict['true'] = self.true
-        if self.false is not None: the_dict['false'] = self.false
+        the_dict = {
+            'rule': self._rule_str, 'service': self.headers['Fiware-Service'],
+            'servicepath': self.headers['Fiware-ServicePath'], 'subsId': self.subscription_id
+        }
 
         if self.true is not None: the_dict['true'] = self.true
         if self.false is not None: the_dict['false'] = self.false
@@ -266,18 +281,11 @@ class Rule:
         return self.rule
 
     def __eq__(self, other):
-        if self.rule != other.rule: return False
-        if self.headers != other.headers: return False
-
-        if self.true != other.true: return False
-        if self.false != other.false: return False
-
-        if self.date_from != other.date_from: return False
-        if self.date_to != other.date_to: return False
-
-        if self.start_time != other.start_time: return False
-        if self.end_time != other.end_time: return False
-
+        if self.rule != other.rule or self.headers != other.headers or \
+           self.true != other.true or self.false != other.false or \
+           self.date_from != other.date_from or self.date_to != other.date_to or \
+           self.start_time != other.start_time or self.end_time != other.end_time:
+            return False
         return True
 
     def __hash__(self):
