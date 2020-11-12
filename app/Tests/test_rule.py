@@ -109,6 +109,7 @@ class TestParser(unittest.TestCase):
         self.assertTrue(rule.subscribe())
         self.assertFalse(rule.subscribe())
         self.assertTrue(rule.unsubscribe())
+        self.assertIsNone(rule.unsubscribe())
 
 
 if __name__ == '__main__':

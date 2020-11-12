@@ -1,7 +1,6 @@
 import requests
 
 from rply import ParserGenerator
-from rply.errors import LexingError
 
 from config import orion_url
 

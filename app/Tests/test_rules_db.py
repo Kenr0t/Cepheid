@@ -3,13 +3,13 @@ import json
 
 import requests
 
-from config import orion_url, iota_url
+from config import orion_url, iota_url, default_service, default_servicepath
 from Rule import Rule
 from Rules_db import RulesDB
 
-svc = "orion"
-svcP = "/environment"
-headers = {"Accept": "application/json", "Fiware-Service": "orion", "Fiware-ServicePath": "/environment"}
+svc = default_service
+svcP = default_servicepath
+headers = {"Accept": "application/json", "Fiware-Service": svc, "Fiware-ServicePath": svcP}
 
 
 class TestRuleDB(unittest.TestCase):
@@ -48,6 +48,7 @@ class TestRuleDB(unittest.TestCase):
         cls.rdb = RulesDB()
         cls.id_r1 = None
 
+
     @classmethod
     def tearDownClass(cls) -> None:
         cls.r1.unsubscribe()
@@ -59,19 +60,19 @@ class TestRuleDB(unittest.TestCase):
         # Testing Inserts
         self.id_r1 = self.rdb.insert(self.r1)
         self.assertIsInstance(self.id_r1, str)
+        self.assertIn(self.r1, self.rdb)
         self.assertIsInstance(self.rdb.insert(self.r2), str)
-        self.assertIsNone(self.rdb.insert(self.r1))
-        self.assertIsNone(self.rdb.insert(self.r2))
+        self.assertIn(self.r2, self.rdb)
 
         # Testing Getters
-        all_rules = self.rdb.get_all()
+        all_rules = self.rdb.get_all(svc, svcP)
         self.assertIn(self.r1, all_rules)
         self.assertIn(self.r2, all_rules)
-        sub_finded_rule = self.rdb.find_by_subscription_id(self.r1.subscription_id)
+        sub_finded_rule = self.rdb.find_by_subscription_id(self.r1.subscription_id, svc, svcP)
         self.assertEqual(sub_finded_rule, self.r1)
 
         # Testing Deleters
-        self.assertTrue(self.rdb.delete_by_id(self.id_r1))
+        self.assertTrue(self.rdb.delete_by_id(self.id_r1, svc, svcP))
         self.assertTrue(self.rdb.delete(self.r2))
         self.assertFalse(self.rdb.delete(self.r2))
 

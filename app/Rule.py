@@ -253,11 +253,9 @@ class Rule:
 
     def unsubscribe(self):
         if self.subscription_id is None:
-            raise ValueError('Subscription ID is not defined')
+            return None
         response = requests.delete(f'{orion_url}/v2/subscriptions/{self.subscription_id}', headers=self.headers)
-        if response.status_code == 404:
-            raise ValueError(f'The subscription {self.subscription_id} does not exists.')
-
+        self.subscription_id = None
         return response.status_code == 204
 
     def to_dict(self):
