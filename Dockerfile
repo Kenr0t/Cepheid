@@ -10,4 +10,5 @@ RUN pip install -r /tmp/requirements.txt
 # copy over our app code
 COPY ./app /app
 
+EXPOSE 4013
 ENV LISTEN_PORT 4013
