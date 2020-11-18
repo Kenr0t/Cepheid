@@ -14,6 +14,8 @@ class RulesDB:
     def __new__(cls):
         if cls.instance is None:
             cls.instance = object.__new__(cls)
+            if not any('subsId' in idx['name'] for idx in cls._rules_db.list_indexes()):
+                cls._rules_db.create_index('subsId')
         return cls.instance
 
     def get_all(self, service: str, servicepath: str, in_json=False):
