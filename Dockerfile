@@ -8,7 +8,8 @@ RUN pip install -U pip
 RUN pip install -r /tmp/requirements.txt
 
 # copy over our app code
-COPY ./app /app
+RUN git clone https://github.com/Kenr0t/Cepheid.git 
+COPY ./Cepheid/app /app
 
 EXPOSE 4013
 ENV LISTEN_PORT 4013
