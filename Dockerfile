@@ -8,6 +8,7 @@ RUN pip install -U pip
 RUN pip install -r /tmp/requirements.txt
 
 # copy over our app code
+RUN apt-get update
 RUN apt-get --no-install-recommends install -y ca-certificates
 RUN git clone https://github.com/Kenr0t/Cepheid.git 
 COPY ./Cepheid/app /app
